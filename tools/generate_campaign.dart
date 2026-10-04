@@ -23,9 +23,13 @@ const outputDirectory = 'tools/generated/campaign';
 /// Rounds generated at once; set GEN_WORKERS to match the machine's cores.
 int get workers => int.tryParse(Platform.environment['GEN_WORKERS'] ?? '') ?? 8;
 /// Effort is counted in evaluated candidates so results do not depend on load.
-const normalEvaluations = 400;
+const normalEvaluations = 1500;
 const explanationEvaluations = 300;
-const safetySeconds = 900;
+const safetySeconds = 1800;
+/// Candidates refined side by side; the worst is replaced by better children.
+const population = 6;
+/// Evaluations without a new best before the worse half is reseeded.
+const reseedAfter = 150;
 /// The quick target search rejects most candidates cheaply; only boards at
 /// the floor get the full exploration.
 const quickStates = 60000;
@@ -101,6 +105,49 @@ class RoundGenerator {
       final q = pick(line);
       b.cr.add(Creature(x: p % b.w, y: p ~/ b.w, d: random.nextInt(4)));
       b.cr.add(Creature(x: q % b.w, y: q ~/ b.w, d: random.nextInt(4)));
+      return true;
+    }
+    return false;
+  }
+
+  /// Cells that share a row or column with another friend, with a clear line
+  /// between them: places where a friend gets more than one possible partner.
+  List<int> alignedCells(EyeBoard b) {
+    final out = <int>{};
+    for (final c in b.cr.where((c) => c.alive)) {
+      for (var d = 0; d < 4; d++) {
+        for (var q = b.step(c.y * b.w + c.x, d); q != null && b.emptyLanding(q, groundOnly: true); q = b.step(q, d)) {
+          out.add(q);
+        }
+      }
+    }
+    return out.toList();
+  }
+
+  /// Puts a friend between two friends that share a line, and its partner on
+  /// the crossing line: the outer pair can only meet after the blocker leaves,
+  /// so the order of play matters.
+  bool addBlocker(EyeBoard b) {
+    final alive = [for (final c in b.cr) if (c.alive) c];
+    for (var attempt = 0; attempt < 30; attempt++) {
+      if (alive.length < 2) return false;
+      final a = pick(alive);
+      final d = random.nextInt(4);
+      final between = <int>[];
+      var q = b.step(a.y * b.w + a.x, d);
+      while (q != null && b.emptyLanding(q, groundOnly: true)) { between.add(q); q = b.step(q, d); }
+      // The line must end on another friend for the blocker to sit between.
+      if (q == null || between.isEmpty || !b.cr.any((c) => c.alive && c.y * b.w + c.x == q)) continue;
+      final blocker = pick(between);
+      final across = (d + 1 + 2 * random.nextInt(2)) % 4;
+      final line = <int>[];
+      for (var r = b.step(blocker, across); r != null && b.emptyLanding(r, groundOnly: true); r = b.step(r, across)) {
+        line.add(r);
+      }
+      if (line.isEmpty) continue;
+      final partner = pick(line);
+      b.cr.add(Creature(x: blocker % b.w, y: blocker ~/ b.w, d: random.nextInt(4)));
+      b.cr.add(Creature(x: partner % b.w, y: partner ~/ b.w, d: random.nextInt(4)));
       return true;
     }
     return false;
@@ -197,8 +244,8 @@ class RoundGenerator {
     for (var k = 0; k < count; k++) {
       final alive = [for (var i = 0; i < b.cr.length; i++) if (b.cr[i].alive) i];
       if (alive.isEmpty) return null;
-      final ops = ['rotate', 'rotate', 'rotate', 'rotate', 'move', 'move', 'move',
-        if (alive.length + 2 <= creatureCap) 'addPair',
+      final ops = ['rotate', 'rotate', 'rotate', 'rotate', 'move', 'move', 'align', 'align',
+        if (alive.length + 2 <= creatureCap) ...['addPair', 'addBlocker'],
         if (alive.length > 4) 'removePair',
         if (allowed.isNotEmpty) ...['addElement', 'removeElement', 'moveTerrain']];
       switch (pick(ops)) {
@@ -208,8 +255,15 @@ class RoundGenerator {
           final i = pick(alive), p = cell(b);
           if (p == null) return null;
           b.cr[i].x = p % b.w; b.cr[i].y = p ~/ b.w;
+        case 'align':
+          final i = pick(alive), spots = alignedCells(b);
+          if (spots.isEmpty) return null;
+          final p = pick(spots);
+          b.cr[i].x = p % b.w; b.cr[i].y = p ~/ b.w;
         case 'addPair':
           if (!addPair(b)) return null;
+        case 'addBlocker':
+          if (!addBlocker(b)) return null;
         case 'removePair':
           final drop = (alive..shuffle(random)).take(2).toSet();
           final keepKind = keep == null ? null : _kinds[keep];
@@ -252,7 +306,19 @@ class RoundGenerator {
     var count = spec.explanation ? 2 + 2 * random.nextInt(2) : (floor ~/ 2 + 2);
     count = min(count + count % 2, creatureCap);
     final b = EyeBoard(w: w, h: h, rocks: {}, cr: [], rules: spec.rules);
-    for (var i = 0; i < count; i += 2) { addPair(b); }
+    // Start from structure, not noise: plain pairs, then blockers that force
+    // an order, then friends moved onto shared lines for rival partners.
+    final blockers = spec.explanation ? 0 : random.nextInt(count ~/ 4 + 1);
+    for (var i = 0; i < count - 2 * blockers; i += 2) { addPair(b); }
+    for (var i = 0; i < blockers; i++) { if (!addBlocker(b)) addPair(b); }
+    if (!spec.explanation) {
+      for (var i = random.nextInt(3); i > 0; i--) {
+        final spots = alignedCells(b);
+        if (spots.isEmpty) break;
+        final f = pick(b.cr), p = pick(spots);
+        f.x = p % b.w; f.y = p ~/ b.w;
+      }
+    }
     final introduced = spec.introduces;
     if (introduced != null && spec.elements.contains(introduced)) place(b, introduced);
     if (!spec.explanation) {
@@ -341,39 +407,48 @@ class RoundGenerator {
   Map<String, Object?> run() {
     final clock = Stopwatch()..start();
     final budget = spec.explanation ? explanationEvaluations : normalEvaluations;
-    var current = initialBoard();
-    var currentEval = evaluate(current);
-    var best = current, bestEval = currentEval;
-    var evaluations = 1, stale = 0, attempts = 0;
-    while (!bestEval.accepted && evaluations < budget && attempts++ < budget * 20 &&
+    final introduced = spec.introduces;
+    var evaluations = 0, attempts = 0, sinceBest = 0;
+    (EyeBoard, Evaluation) fresh() {
+      final board = initialBoard();
+      evaluations++;
+      return (board, evaluate(board));
+    }
+    final pool = [for (var i = 0; i < population; i++) fresh()];
+    var best = pool.reduce((a, b) => a.$2.score <= b.$2.score ? a : b);
+    while (!best.$2.accepted && evaluations < budget && attempts++ < budget * 20 &&
         clock.elapsed.inSeconds < safetySeconds) {
-      final candidate = mutate(current, keep: spec.introduces);
+      // The better of two random members breeds.
+      final x = pick(pool), y = pick(pool);
+      final parent = x.$2.score <= y.$2.score ? x : y;
+      final candidate = mutate(parent.$1, keep: introduced);
       if (candidate == null) continue;
-      final introduced = spec.introduces;
       if (introduced != null && spec.elements.contains(introduced) &&
           !mechanics(candidate).contains(introduced)) continue;
       evaluations++;
       final e = evaluate(candidate);
-      if (e.score <= currentEval.score || random.nextDouble() < 0.03) {
-        stale = e.score < currentEval.score ? 0 : stale + 1;
-        current = candidate; currentEval = e;
-      } else {
-        stale++;
+      final worst = pool.reduce((a, b) => a.$2.score >= b.$2.score ? a : b);
+      // A rare worse step keeps the pool from settling on one local optimum.
+      if (e.score < worst.$2.score || random.nextDouble() < 0.02) {
+        pool[pool.indexOf(worst)] = (candidate, e);
       }
-      if (e.score < bestEval.score) { best = candidate; bestEval = e; }
-      if (stale > 80) {
-        current = random.nextBool() ? best : initialBoard();
-        currentEval = evaluate(current);
-        stale = 0;
+      if (e.score < best.$2.score) {
+        best = (candidate, e);
+        sinceBest = 0;
+      } else if (++sinceBest > reseedAfter) {
+        pool.sort((a, b) => a.$2.score.compareTo(b.$2.score));
+        for (var i = population ~/ 2; i < population; i++) { pool[i] = fresh(); }
+        sinceBest = 0;
       }
     }
+    final (board, evaluation) = best;
     return {
-      'round': spec.round, 'status': bestEval.accepted ? 'accepted' : 'best_effort',
-      'score': bestEval.score, 'reasons': bestEval.reasons, 'evaluations': evaluations,
+      'round': spec.round, 'status': evaluation.accepted ? 'accepted' : 'best_effort',
+      'score': evaluation.score, 'reasons': evaluation.reasons, 'evaluations': evaluations,
       'seconds': clock.elapsed.inSeconds,
-      'level': bestEval.par == null ? null : _level(best, bestEval),
-      'metrics': bestEval.difficulty?.toJson(),
-      'layout': renewalCanonical(best, layoutOnly: true),
+      'level': evaluation.par == null ? null : _level(board, evaluation),
+      'metrics': evaluation.difficulty?.toJson(),
+      'layout': renewalCanonical(board, layoutOnly: true),
     };
   }
 
