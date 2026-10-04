@@ -32,8 +32,10 @@ const population = 6;
 const reseedAfter = 150;
 /// The quick target search rejects most candidates cheaply; only boards at
 /// the floor get the full exploration.
-const quickStates = 60000;
-const measureStates = 300000;
+/// Large enough to certify the longest floors (16 taps); a smaller budget
+/// threw away boards that reached the floor but could not be proven.
+const quickStates = 200000;
+const measureStates = 600000;
 /// Search cost grows about fourfold per friend, so boards stay small and
 /// difficulty comes from the thinking metrics (spec 4-1).
 const maxCreatures = 12;

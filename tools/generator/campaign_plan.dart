@@ -72,7 +72,7 @@ RoundSpec specFor(int round) {
     rules: rules, tapFloor: floor, slack: slack,
     minFirstChoices: !targeted ? null : round <= 50 ? 5 : round <= 150 ? 6 : 7,
     maxCorrectShare: !targeted ? null : peak
-        ? (round <= 50 ? 1 / 3 : round <= 150 ? 0.25 : 0.20)
+        ? (round <= 50 ? 0.40 : 0.25)
         : (round <= 50 ? 0.50 : round <= 150 ? 0.40 : 1 / 3),
     minDeadEndRatio: !targeted ? null : peak
         ? (round <= 50 ? 0.40 : 0.50)
