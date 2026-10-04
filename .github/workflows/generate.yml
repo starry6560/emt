@@ -11,6 +11,14 @@ on:
         description: "동시에 쓸 서버 수 (최대 20)"
         required: true
         default: "20"
+      attempt:
+        description: "재생성 회차 (회차마다 다른 시작값)"
+        required: true
+        default: "0"
+      seconds:
+        description: "라운드당 최대 초"
+        required: true
+        default: "3600"
 
 permissions:
   contents: read
@@ -48,6 +56,8 @@ jobs:
         env:
           ROUNDS: ${{ matrix.rounds }}
           GEN_WORKERS: "4"
+          GEN_ATTEMPT: ${{ inputs.attempt }}
+          GEN_SECONDS: ${{ inputs.seconds }}
         run: ./generate $ROUNDS
       - uses: actions/upload-artifact@v4
         if: always()

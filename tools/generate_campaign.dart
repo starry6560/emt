@@ -7,7 +7,9 @@
 //   dart tools/generate_campaign.dart 6-20        a range
 //   dart tools/generate_campaign.dart 6-20 --redo also redo accepted rounds
 // Rounds whose file is already accepted are skipped, so an interrupted run
-// resumes where it stopped. GEN_WORKERS sets how many rounds run at once.
+// resumes where it stopped. GEN_WORKERS sets how many rounds run at once,
+// GEN_ATTEMPT gives a retry its own random start (the same attempt always
+// produces the same boards), and GEN_SECONDS sets the time per round.
 import 'dart:convert';
 import 'dart:io';
 import 'dart:isolate';
@@ -24,10 +26,12 @@ const outputDirectory = 'tools/generated/campaign';
 int get workers => int.tryParse(Platform.environment['GEN_WORKERS'] ?? '') ?? 8;
 /// Effort is counted in evaluated candidates so results do not depend on load.
 const normalEvaluations = 6000;
-const explanationEvaluations = 300;
-/// One hour per round; a GitHub machine runs four rounds at a time for up to
-/// six hours, so twenty machines cover the campaign.
-const safetySeconds = 3600;
+/// Explanation boards are tiny and cheap to evaluate, so they get many tries.
+const explanationEvaluations = 3000;
+/// One hour per round by default; a GitHub machine runs four rounds at a
+/// time for up to six hours, so twenty machines cover the campaign.
+int get safetySeconds => int.tryParse(Platform.environment['GEN_SECONDS'] ?? '') ?? 3600;
+int get attempt => int.tryParse(Platform.environment['GEN_ATTEMPT'] ?? '') ?? 0;
 /// Candidates refined side by side; the worst is replaced by better children.
 const population = 6;
 /// Evaluations without a new best before the worse half is reseeded.
@@ -63,6 +67,14 @@ const names = <String, (String, String)>{
   'box': ('나무 상자', 'Wooden Box'), 'rotor': ('회전 거울', 'Pivot Mirror'),
 };
 
+/// Hand-built starts for explanation rounds the random search could not
+/// solve: on a tiny board the introduced element must change the solution.
+const explanationTemplates = <String, Map<String, Object>>{
+  // Two hill friends meet over the ground friend between them; without the
+  // hill that friend blocks their gaze.
+  'hill': {'rows': ['^v<.', '.<..', '....', '....'], 'heights': ['^.^.', '....', '....', '....']},
+};
+
 final _kinds = {for (final k in CreatureKind.values.where((k) => k != CreatureKind.sated)) kindName(k): k};
 
 class Evaluation {
@@ -75,7 +87,7 @@ class Evaluation {
 }
 
 class RoundGenerator {
-  RoundGenerator(this.spec) : random = Random(spec.round * 7919 + 17);
+  RoundGenerator(this.spec) : random = Random(spec.round * 7919 + 17 + attempt * 104729);
   final RoundSpec spec;
   final Random random;
 
@@ -182,7 +194,9 @@ class RoundGenerator {
       }
       return true;
     }
-    final p = cell(b);
+    // Terrain mostly goes where a friend looks, so it can touch the solution.
+    final aligned = random.nextDouble() < 0.7 ? alignedCells(b) : const <int>[];
+    final p = aligned.isNotEmpty ? pick(aligned) : cell(b);
     if (p == null) return false;
     switch (element) {
       case 'rock': b.rocks.add(p);
@@ -305,6 +319,10 @@ class RoundGenerator {
   }
 
   EyeBoard initialBoard() {
+    final template = spec.explanation ? explanationTemplates[spec.introduces] : null;
+    if (template != null) {
+      return boardFromData({...template, 'parameters': const <String, Object>{}, 'rules': spec.rules.toJson()});
+    }
     final w = spec.explanation ? 4 + random.nextInt(2) : max(4, spec.maxWidth - random.nextInt(2));
     final h = spec.explanation ? 4 + random.nextInt(2) : max(4, spec.maxHeight - random.nextInt(2));
     var count = spec.explanation ? 2 + 2 * random.nextInt(2) : (floor ~/ 2 + 2);
@@ -513,7 +531,9 @@ Future<void> main(List<String> args) async {
     final file = File('${output.path}/round-${round.toString().padLeft(3, '0')}.json');
     if (!file.existsSync()) return false;
     try {
-      return (jsonDecode(file.readAsStringSync()) as Map)['status'] == 'accepted';
+      // `tolerated` rounds were reviewed and kept although slightly off target.
+      final status = (jsonDecode(file.readAsStringSync()) as Map)['status'];
+      return status == 'accepted' || status == 'tolerated';
     } on FormatException {
       return false;
     }
