@@ -1,0 +1,55 @@
+name: generate
+
+on:
+  workflow_dispatch:
+    inputs:
+      rounds:
+        description: "생성할 라운드 (예: 1-300, 또는 7 10 25)"
+        required: true
+        default: "1-300"
+      machines:
+        description: "동시에 쓸 서버 수 (최대 20)"
+        required: true
+        default: "20"
+
+permissions:
+  contents: read
+
+jobs:
+  split:
+    runs-on: ubuntu-latest
+    outputs:
+      chunks: ${{ steps.split.outputs.chunks }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dart-lang/setup-dart@v1
+      - id: split
+        env:
+          ROUNDS: ${{ inputs.rounds }}
+          MACHINES: ${{ inputs.machines }}
+        run: echo "chunks=$(dart run tools/split_rounds.dart "$ROUNDS" "$MACHINES")" >> "$GITHUB_OUTPUT"
+
+  generate:
+    needs: split
+    runs-on: ubuntu-latest
+    timeout-minutes: 340
+    strategy:
+      fail-fast: false
+      matrix:
+        rounds: ${{ fromJson(needs.split.outputs.chunks) }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dart-lang/setup-dart@v1
+      - run: dart pub get
+      # A compiled executable runs the searches faster than the JIT.
+      - run: dart compile exe tools/generate_campaign.dart -o generate
+      - env:
+          ROUNDS: ${{ matrix.rounds }}
+          GEN_WORKERS: "4"
+        run: ./generate $ROUNDS
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: rounds-${{ strategy.job-index }}
+          path: tools/generated/campaign/*.json
+          retention-days: 1
