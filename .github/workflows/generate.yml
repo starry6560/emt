@@ -43,7 +43,9 @@ jobs:
       - run: dart pub get
       # A compiled executable runs the searches faster than the JIT.
       - run: dart compile exe tools/generate_campaign.dart -o generate
-      - env:
+      # Stop generating before the job limit so finished rounds still upload.
+      - timeout-minutes: 320
+        env:
           ROUNDS: ${{ matrix.rounds }}
           GEN_WORKERS: "4"
         run: ./generate $ROUNDS

@@ -23,19 +23,21 @@ const outputDirectory = 'tools/generated/campaign';
 /// Rounds generated at once; set GEN_WORKERS to match the machine's cores.
 int get workers => int.tryParse(Platform.environment['GEN_WORKERS'] ?? '') ?? 8;
 /// Effort is counted in evaluated candidates so results do not depend on load.
-const normalEvaluations = 1500;
+const normalEvaluations = 6000;
 const explanationEvaluations = 300;
-const safetySeconds = 1800;
+/// One hour per round; a GitHub machine runs four rounds at a time for up to
+/// six hours, so twenty machines cover the campaign.
+const safetySeconds = 3600;
 /// Candidates refined side by side; the worst is replaced by better children.
 const population = 6;
 /// Evaluations without a new best before the worse half is reseeded.
 const reseedAfter = 150;
 /// The quick target search rejects most candidates cheaply; only boards at
 /// the floor get the full exploration.
-/// Large enough to certify the longest floors (16 taps); a smaller budget
-/// threw away boards that reached the floor but could not be proven.
-const quickStates = 200000;
-const measureStates = 600000;
+/// More states per candidate means fewer candidates per hour; trials showed
+/// that attempts, not this budget, limit which floors are reached.
+const quickStates = 60000;
+const measureStates = 300000;
 /// Search cost grows about fourfold per friend, so boards stay small and
 /// difficulty comes from the thinking metrics (spec 4-1).
 const maxCreatures = 12;
