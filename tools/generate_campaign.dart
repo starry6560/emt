@@ -70,6 +70,8 @@ const names = <String, (String, String)>{
 /// Hand-built starts for explanation rounds the random search could not
 /// solve: on a tiny board the introduced element must change the solution.
 const explanationTemplates = <String, Map<String, Object>>{
+  // The first round only teaches turning and matching: two pairs, three taps.
+  'normal': {'rows': ['....', '>..v', '....', '^..v'], 'heights': ['....', '....', '....', '....']},
   // Two hill friends meet over the ground friend between them; without the
   // hill that friend blocks their gaze.
   'hill': {'rows': ['^v<.', '.<..', '....', '....'], 'heights': ['^.^.', '....', '....', '....']},
