@@ -491,6 +491,14 @@ class RoundGenerator {
     if (spec.trapRequired && d.greedyTrap != true) miss('no_greedy_trap', 15);
     if (d.maxChain > 6) miss('chain_over_six', 30);
     if (d.allFirstLethal) miss('all_first_lethal', 50);
+    // Required elements are scored on every candidate, not only finalists:
+    // otherwise the search settles on boards where they just sit there.
+    for (final element in spec.required.difference({'rock'})) {
+      final evidence = ruleEvidence(b, par, element, maxStates: quickStates);
+      if (evidence == null || evidence < activeEvidence) {
+        miss('required_inactive:$element', 40 * (1 - (evidence ?? 0) / activeEvidence));
+      }
+    }
     // Element activity costs two searches per element; only finalists pay it.
     if (score == 0) {
       d = measureElements(b, d, maxStates: measureStates);
