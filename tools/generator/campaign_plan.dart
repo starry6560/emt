@@ -17,22 +17,78 @@ const introductions = <int, String>{
 
 const boardRules = {'noTriangle', 'removalTurnsNeighbors', 'tapTurnsNeighbors'};
 
+/// Rounds after its introduction in which a new element must appear
+/// (spec 2-5).
+const practiceRounds = 12;
+
+/// Elements that only work together with another one.
+const elementNeeds = {'box': 'hopper'};
+
+final List<Set<String>> _required = _planRequired();
+
+/// Elements a normal round must show and put to work (spec 2-5): the
+/// newest element through its practice rounds, joined after the first of
+/// them by one older element, and two older elements once the practice is
+/// over. Older elements take turns, least recently required first, so every
+/// element keeps coming back and mixes with the others.
+Set<String> requiredFor(int round) {
+  if (round < 1 || round > campaignRounds) throw RangeError.range(round, 1, campaignRounds, 'round');
+  return _required[round - 1];
+}
+
+List<Set<String>> _planRequired() {
+  final elementIntros = {
+    for (final e in introductions.entries)
+      if (!boardRules.contains(e.value) && e.value != 'normal') e.value: e.key,
+  };
+  final lastRequired = {...elementIntros};
+  return [
+    for (var round = 1; round <= campaignRounds; round++)
+      () {
+        if (introductions.containsKey(round)) return const <String>{};
+        final known = [for (final e in elementIntros.entries) if (e.value < round) e.key];
+        if (known.isEmpty) return const <String>{};
+        final newest = known.last;
+        final since = round - elementIntros[newest]!;
+        final practice = since <= practiceRounds;
+        final required = <String>{if (practice) newest};
+        final mix = !practice ? 2 : since == 1 ? 0 : 1;
+        final older = known.where((e) => !required.contains(e)).toList()
+          ..sort((a, b) {
+            final byTurn = lastRequired[a]!.compareTo(lastRequired[b]!);
+            return byTurn != 0 ? byTurn : elementIntros[a]!.compareTo(elementIntros[b]!);
+          });
+        required.addAll(older.take(mix));
+        for (final e in required.toList()) {
+          final need = elementNeeds[e];
+          if (need != null) required.add(need);
+        }
+        for (final e in required) { lastRequired[e] = round; }
+        return Set<String>.unmodifiable(required);
+      }(),
+  ];
+}
+
 class RoundSpec {
   const RoundSpec({required this.round, required this.introduces, required this.elements,
     required this.rules, required this.tapFloor, required this.slack,
     required this.minFirstChoices, required this.maxCorrectShare,
     required this.minDeadEndRatio, required this.trapRequired,
-    required this.decoyCap, required this.maxWidth, required this.maxHeight});
+    required this.decoyCap, required this.maxWidth, required this.maxHeight,
+    this.required = const {}});
 
   final int round;
   /// Element or rule shown by this explanation round, or null for a normal round.
   final String? introduces;
   /// Elements that may appear (rock and everything introduced so far).
   final Set<String> elements;
+  /// Elements that must appear and work on this board; see [requiredFor].
+  final Set<String> required;
   final EyeRules rules;
   /// Minimum shortest-solution length (4-1); 0 for none.
   final int tapFloor;
-  /// Extra taps on top of the target; null means no tap limit (1-2, 3-2).
+  /// Extra taps on top of the target that the 4-2 metrics explore; null for
+  /// explanation rounds, which are measured at the target itself.
   final int? slack;
   /// Targets from 4-3; null where the spec sets none. A player feels the
   /// chance that a random first tap is right, so the targets are shares of
@@ -48,7 +104,7 @@ class RoundSpec {
 
   bool get explanation => introduces != null;
   bool get peak => round % 5 == 0;
-  int? limitFor(int par) => slack == null ? null : par + slack!;
+  int? depthFor(int par) => slack == null ? null : par + slack!;
 }
 
 RoundSpec specFor(int round) {
@@ -80,6 +136,7 @@ RoundSpec specFor(int round) {
     trapRequired: targeted && round % 5 == 0,
     decoyCap: explanation ? 0 : round <= 75 ? 1 : round <= 200 ? 2 : 3,
     maxWidth: width, maxHeight: height,
+    required: requiredFor(round),
   );
 }
 
