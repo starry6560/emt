@@ -115,8 +115,8 @@ RoundSpec specFor(int round) {
   final rules = EyeRules(noTriangle: introduced.contains('noTriangle'),
       removalTurnsNeighbors: introduced.contains('removalTurnsNeighbors'),
       tapTurnsNeighbors: introduced.contains('tapTurnsNeighbors'));
-  final floor = explanation ? 0 : round <= 5 ? 0 : round <= 20 ? 8 : round <= 50 ? 10
-      : round <= 100 ? 12 : round <= 200 ? 14 : 16;
+  final floor = explanation ? 0 : round <= 5 ? 0 : round <= 20 ? 7 : round <= 50 ? 9
+      : round <= 100 ? 11 : round <= 200 ? 13 : 15;
   final slack = explanation ? null : round <= 20 ? 3 : round <= 100 ? 2 : 1;
   final targeted = !explanation && round > 5;
   final peak = round % 5 == 0;

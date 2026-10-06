@@ -6,6 +6,7 @@
 //   dart tools/generate_campaign.dart 1 3 20      those rounds
 //   dart tools/generate_campaign.dart 6-20        a range
 //   dart tools/generate_campaign.dart 6-20 --redo also redo accepted rounds
+//   dart tools/generate_campaign.dart 6-20 --rescore  re-score kept boards only
 // Rounds whose file is already accepted are skipped, so an interrupted run
 // resumes where it stopped. GEN_WORKERS sets how many rounds run at once,
 // GEN_ATTEMPT gives a retry its own random start (the same attempt always
@@ -558,6 +559,22 @@ class RoundGenerator {
     };
   }
 
+  /// Scores the board a previous run kept against the current targets, so a
+  /// changed target can accept it without a new search. Null when it still
+  /// misses.
+  Map<String, Object?>? rescore(Map stored) {
+    final level = stored['level'] as Map?;
+    if (level == null) return null;
+    final board = boardFromData(level);
+    final evaluation = evaluate(board);
+    if (!evaluation.accepted) return null;
+    return {
+      ...stored, 'status': 'accepted', 'score': 0.0, 'reasons': const <String>[],
+      'level': _level(board, evaluation), 'metrics': evaluation.difficulty?.toJson(),
+      'rescored': true,
+    };
+  }
+
   Map<String, Object?> _level(EyeBoard b, Evaluation e) {
     final round = spec.round;
     final solution = e.difficulty?.solution.isNotEmpty == true
@@ -595,6 +612,9 @@ Map<String, Object?> generateRound(int round) => RoundGenerator(specFor(round)).
 /// A top-level wrapper keeps the isolate closure from capturing main's state.
 Future<Map<String, Object?>> runRound(int round) => Isolate.run(() => generateRound(round));
 
+Future<Map<String, Object?>?> rescoreRound(int round, Map stored) =>
+    Isolate.run(() => RoundGenerator(specFor(round)).rescore(stored));
+
 List<int> parseRounds(List<String> args) => [
   for (final arg in args)
     if (arg.contains('-'))
@@ -629,6 +649,26 @@ Future<void> main(List<String> args) async {
   }
   final clock = Stopwatch()..start();
   var next = 0, done = 0;
+  // After a target changes, boards earlier runs kept may now pass.
+  if (args.contains('--rescore')) {
+    final passed = <int>[];
+    Future<void> rescorer() async {
+      while (next < rounds.length) {
+        final round = rounds[next++];
+        final file = File('${output.path}/round-${round.toString().padLeft(3, '0')}.json');
+        if (!file.existsSync()) continue;
+        final result = await rescoreRound(round, jsonDecode(file.readAsStringSync()) as Map);
+        if (result == null) continue;
+        file.writeAsStringSync(encoder.convert(result));
+        passed.add(round);
+        stdout.writeln('round $round: accepted on rescore');
+      }
+    }
+    await Future.wait([for (var w = 0; w < min(workers, rounds.length); w++) rescorer()]);
+    passed.sort();
+    stdout.writeln('rescored ${rounds.length}, accepted ${passed.length}: ${passed.join(' ')}');
+    return;
+  }
   Future<void> worker() async {
     while (next < rounds.length) {
       final round = rounds[next++];
