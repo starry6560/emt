@@ -381,7 +381,19 @@ class RoundGenerator {
     return copy.toRows();
   }
 
+  /// A placement can leave a board the parser rejects (a portal without its
+  /// twin), so a fresh board is drawn until one validates.
   EyeBoard initialBoard() {
+    while (true) {
+      try {
+        return _initialBoard();
+      } on FormatException {
+        continue;
+      }
+    }
+  }
+
+  EyeBoard _initialBoard() {
     final template = spec.explanation ? explanationTemplates[spec.introduces] : null;
     if (template != null) {
       return boardFromData({...template, 'parameters': const <String, Object>{}, 'rules': spec.rules.toJson()});
