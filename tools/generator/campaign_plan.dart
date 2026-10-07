@@ -69,13 +69,28 @@ List<Set<String>> _planRequired() {
   ];
 }
 
+/// Rounds the strict targets did not reach after three server runs; to
+/// finish the campaign they take looser checks (spec 4-5, user
+/// decision 2026-10-07): the floor two taps lower, no thinking targets, and
+/// one working required element is enough.
+const relaxedRounds = {
+  29, 32, 35, 53, 55, 56, 57, 58, 59, 60, 62, 67, 68, 71, 72, 90, 92, 95, 97, 100, 103, 106, 110,
+  120, 130, 131, 132, 136, 139, 144, 145, 150, 157, 161, 165, 168, 169, 175, 178, 179, 180, 181,
+  182, 183, 188, 189, 190, 200, 202, 203, 204, 205, 206, 209, 210, 217, 218, 219, 220, 221, 225,
+  227, 231, 232, 233, 235, 237, 239, 241, 243, 244, 245, 247, 248, 250, 252, 253, 254, 255, 259,
+  260, 263, 265, 266, 270, 274, 276, 277, 281, 282, 283, 285, 287, 292, 293, 298,
+};
+
+/// How much lower a relaxed round's tap floor is.
+const relaxedFloorDrop = 2;
+
 class RoundSpec {
   const RoundSpec({required this.round, required this.introduces, required this.elements,
     required this.rules, required this.tapFloor, required this.slack,
     required this.minFirstChoices, required this.maxCorrectShare,
     required this.minDeadEndRatio, required this.trapRequired,
-    required this.decoyCap, required this.maxWidth, required this.maxHeight,
-    this.required = const {}});
+    this.decoyCap, required this.maxWidth, required this.maxHeight,
+    this.required = const {}, this.requiredActive});
 
   final int round;
   /// Element or rule shown by this explanation round, or null for a normal round.
@@ -84,6 +99,9 @@ class RoundSpec {
   final Set<String> elements;
   /// Elements that must appear and work on this board; see [requiredFor].
   final Set<String> required;
+  /// How many of the measured required elements (all but rock) must work;
+  /// null for all of them.
+  final int? requiredActive;
   final EyeRules rules;
   /// Minimum shortest-solution length (4-1); 0 for none.
   final int tapFloor;
@@ -98,11 +116,18 @@ class RoundSpec {
   final double? minDeadEndRatio;
   /// Peak rounds (multiples of five) must trap the greedy player.
   final bool trapRequired;
-  /// Decoy element kinds allowed on the board (5).
-  final int decoyCap;
+  /// Decoy element kinds allowed on the board (5); null for no cap.
+  final int? decoyCap;
   final int maxWidth, maxHeight;
 
   bool get explanation => introduces != null;
+  bool get relaxed => requiredActive != null;
+  /// Whether the required elements found working are enough.
+  bool requiredWorking(Set<String> active) {
+    final measured = required.difference({'rock'});
+    final working = measured.intersection(active).length;
+    return working >= (requiredActive == null ? measured.length : requiredActive!.clamp(0, measured.length));
+  }
   bool get peak => round % 5 == 0;
   int? depthFor(int par) => slack == null ? null : par + slack!;
 }
@@ -118,14 +143,15 @@ RoundSpec specFor(int round) {
   final floor = explanation ? 0 : round <= 5 ? 0 : round <= 20 ? 7 : round <= 50 ? 9
       : round <= 100 ? 11 : round <= 200 ? 13 : 15;
   final slack = explanation ? null : round <= 20 ? 3 : round <= 100 ? 2 : 1;
-  final targeted = !explanation && round > 5;
+  final relaxed = relaxedRounds.contains(round);
+  final targeted = !explanation && round > 5 && !relaxed;
   final peak = round % 5 == 0;
   final (width, height) = round <= 5 ? (5, 5) : round <= 20 ? (6, 7) : round <= 50 ? (7, 8)
       : round <= 100 ? (8, 9) : round <= 200 ? (8, 10) : (8, 11);
   return RoundSpec(
     round: round, introduces: introduces,
     elements: introduced.difference(boardRules).difference({'normal'}),
-    rules: rules, tapFloor: floor, slack: slack,
+    rules: rules, tapFloor: relaxed ? floor - relaxedFloorDrop : floor, slack: slack,
     minFirstChoices: !targeted ? null : round <= 50 ? 5 : round <= 150 ? 6 : 7,
     maxCorrectShare: !targeted ? null : peak
         ? (round <= 50 ? 0.40 : 0.25)
@@ -134,9 +160,9 @@ RoundSpec specFor(int round) {
         ? (round <= 50 ? 0.40 : 0.50)
         : (round <= 50 ? 0.25 : round <= 150 ? 0.30 : 0.35),
     trapRequired: targeted && round % 5 == 0,
-    decoyCap: explanation ? 0 : round <= 75 ? 1 : round <= 200 ? 2 : 3,
+    decoyCap: explanation ? 0 : null,
     maxWidth: width, maxHeight: height,
-    required: requiredFor(round),
+    required: requiredFor(round), requiredActive: relaxed ? 1 : null,
   );
 }
 

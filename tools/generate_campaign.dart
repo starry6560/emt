@@ -35,6 +35,8 @@ int get safetySeconds => int.tryParse(Platform.environment['GEN_SECONDS'] ?? '')
 int get attempt => int.tryParse(Platform.environment['GEN_ATTEMPT'] ?? '') ?? 0;
 /// Candidates refined side by side; the worst is replaced by better children.
 const population = 6;
+/// Above any score a full-length board gets from its metrics and elements.
+const belowFloorBase = 1000.0;
 /// Evaluations without a new best before the worse half is reseeded.
 const reseedAfter = 150;
 /// The quick target search rejects most candidates cheaply; only boards at
@@ -292,7 +294,9 @@ class RoundGenerator {
     final maps = <Map<int, Object>>[b.gates, b.mirrors, b.rotors, b.lamps, b.lampDoors, b.portals]
         .where((m) => m.isNotEmpty).toList();
     if (sets.isEmpty && maps.isEmpty) return false;
-    final to = cell(b);
+    // Terrain on a friend's line can change the solution; elsewhere it is idle.
+    final aligned = random.nextDouble() < 0.7 ? alignedCells(b) : const <int>[];
+    final to = aligned.isNotEmpty ? pick(aligned) : cell(b);
     if (to == null) return false;
     if (maps.isEmpty || (sets.isNotEmpty && random.nextBool())) {
       final set = pick(sets), from = pick(set.toList());
@@ -433,14 +437,15 @@ class RoundGenerator {
 
   Evaluation evaluate(EyeBoard b) {
     if (b.won || b.pairs().isNotEmpty) return Evaluation(1e6, reasons: ['matches_before_play']);
-    final kinds = mechanics(b)..remove('rock');
-    if (kinds.length > 7) return Evaluation(1e6, reasons: ['more_than_seven_kinds']);
     final missing = keep.difference(mechanics(b));
     if (missing.isNotEmpty) return Evaluation(1e6, reasons: ['missing:${missing.join(',')}']);
     final quick = searchBoard(b, maxDepth: maxDepth, maxStates: quickStates);
     if (!quick.optimal) return Evaluation(1e6, reasons: ['no_solution_within_${maxDepth}_or_${quick.status.name}']);
     final par = quick.path.length;
-    if (par < floor) return Evaluation(10.0 * (floor - par), par: par, reasons: ['below_floor']);
+    // A board that reaches the floor always ranks ahead of a shorter one, so
+    // the pool keeps working on full-length boards instead of settling one
+    // tap short.
+    if (par < floor) return Evaluation(belowFloorBase + 10.0 * (floor - par), par: par, reasons: ['below_floor']);
     // One exploration to the measurement depth serves every metric (spec 4-2).
     final graph = exploreGraph(b, spec.depthFor(par) ?? par, maxStates: measureStates);
     if (!graph.complete) return Evaluation(1e5, par: par, reasons: ['measure_${graph.status}']);
@@ -494,19 +499,28 @@ class RoundGenerator {
     if (d.allFirstLethal) miss('all_first_lethal', 50);
     // Required elements are scored on every candidate, not only finalists:
     // otherwise the search settles on boards where they just sit there.
-    for (final element in spec.required.difference({'rock'})) {
-      final evidence = ruleEvidence(b, par, element, maxStates: quickStates);
-      if (evidence == null || evidence < activeEvidence) {
-        miss('required_inactive:$element', 40 * (1 - (evidence ?? 0) / activeEvidence));
-      }
+    // A relaxed round needs only some of them to work; the closest ones count.
+    final shortfalls = <(String, double)>[
+      for (final element in spec.required.difference({'rock'}))
+        (element, () {
+          final evidence = ruleEvidence(b, par, element, maxStates: quickStates);
+          return evidence == null ? 1.0 : max(0.0, 1 - evidence / activeEvidence);
+        }()),
+    ]..sort((x, y) => x.$2.compareTo(y.$2));
+    final needed = spec.requiredActive == null ? shortfalls.length : min(spec.requiredActive!, shortfalls.length);
+    for (final (element, shortfall) in shortfalls.take(needed)) {
+      if (shortfall > 0) miss('required_inactive:$element', 40 * shortfall);
     }
     // Element activity costs two searches per element; only finalists pay it.
     if (score == 0) {
       d = measureElements(b, d, maxStates: measureStates);
-      if (d.decoys.length > spec.decoyCap) miss('decoys', 30.0 * (d.decoys.length - spec.decoyCap));
+      final cap = spec.decoyCap;
+      if (cap != null && d.decoys.length > cap) miss('decoys', 30.0 * (d.decoys.length - cap));
       // A required element must change the solution, not just sit there.
-      for (final element in spec.required.intersection(d.decoys)) { miss('required_decoy:$element', 40); }
-      if (d.unprovenElements.isNotEmpty) miss('unproven_elements', 20);
+      if (!spec.requiredWorking(d.active)) {
+        miss('required_decoy:${spec.required.intersection(d.decoys).join(',')}', 40);
+      }
+      if (!spec.relaxed && d.unprovenElements.isNotEmpty) miss('unproven_elements', 20);
     }
     return Evaluation(score, par: par, difficulty: d, reasons: reasons);
   }
