@@ -70,56 +70,34 @@ const names = <String, (String, String)>{
   'box': ('나무 상자', 'Wooden Box'), 'rotor': ('회전 거울', 'Pivot Mirror'),
 };
 
-/// One-line rule explanation shown when a round introduces it.
+/// Short rule explanation shown when a round introduces it: at most two
+/// short lines, broken by hand so words never split.
 const introLines = <String, (String, String)>{
-  'noTriangle': ('두 친구 이상이 한 친구를 바라보면 그 친구는 짝이 될 수 없어요. 한쪽이 고개를 돌려야 해요.',
-      'A creature watched by two or more cannot match. One of them must look away first.'),
-  'removalTurnsNeighbors': ('친구가 사라지면 상하좌우 이웃이 시계 방향으로 한 번 돌아요.',
-      'When a creature disappears, its four neighbors turn clockwise once.'),
-  'tapTurnsNeighbors': ('친구를 눌러 돌리면 상하좌우 이웃도 함께 시계 방향으로 돌아요.',
-      'Turning a creature also turns its four neighbors clockwise.'),
-  'rock': ('바위는 시선을 막아요. 바위를 사이에 두고는 눈을 맞출 수 없어요.',
-      'Rocks block sight. Creatures cannot match through a rock.'),
-  'anchored': ('앵커는 돌릴 수 없어요. 다른 친구를 돌려 눈을 맞춰 주세요.',
-      'Anchors cannot turn. Turn the others to meet their gaze.'),
-  'cookie': ('쿠키벽은 시선을 막아요. 바로 옆 친구가 짝지어 사라지면 부서져요.',
-      'Cookie walls block sight. They crumble when a creature next to them matches away.'),
-  'spark': ('스파크가 사라지면 이웃을 반시계 방향으로 돌려요. 다른 친구의 시계 방향 회전과 겹치면 상쇄돼요.',
-      'When a Spark disappears, it turns its neighbors counter-clockwise. This cancels a clockwise turn in the same wave.'),
-  'gate': ('민트색 문은 친구를 직접 돌릴 때마다 모두 열리거나 닫혀요.',
-      'Mint gates all open or close every time you turn a creature yourself.'),
-  'beckoner': ('컨덕터를 누르면 자신은 그대로 있고, 바라보는 친구를 돌려요.',
-      'Tapping a Conductor turns the creature it is looking at instead of itself.'),
-  'hopper': ('호퍼를 누르면 돌지 않고 앞으로 한 칸 뛰어요.',
-      'Tapping a Hopper makes it jump one cell forward instead of turning.'),
-  'candy': ('짝이 만나러 가는 길에 별사탕이 있으면 모아요. 모두 모아야 별 세 개예요.',
-      'Matching creatures collect candy on their path. Collect it all for three stars.'),
-  'eater': ('이터는 첫 짝을 먹고 남아요. 다음 짝을 만나면 함께 사라져요.',
-      'An Eater eats its first partner and stays. On its next match, both vanish.'),
-  'impatient': ('타이머는 행동마다 숫자가 줄어요. 0이 되기 전에 돌려 주지 않으면 굳어 버려요.',
-      'A Timer counts down each action. Turn it before zero, or it locks in place.'),
-  'mirror': ('거울은 시선을 90도로 꺾어요. 거울을 거쳐서도 눈을 맞출 수 있어요.',
-      'Mirrors bend sight 90 degrees. Creatures can match through them.'),
-  'lamp': ('지상 친구가 램프를 바라보는 동안 같은 번호의 문이 열려요.',
-      'While a ground creature looks at a lamp, doors with its number open.'),
-  'portal': ('같은 번호의 웜홀 두 개는 이어져 있어요. 시선이 한쪽으로 들어가면 반대쪽으로 나와요.',
-      'Two wormholes with the same number are linked. Sight entering one comes out of the other.'),
-  'linked': ('링크 하나를 누르면 링크 무리 전체가 함께 돌아요.',
-      'Tapping one Link turns every Link together.'),
-  'ghost': ('유령은 가장 가까운 친구를 쫓아와요. 친구가 바라보면 멈추고, 잡히면 실패예요.',
-      'Ghosts chase the nearest creature but stop when watched. Getting caught fails the level.'),
-  'vine': ('덩굴은 행동할 때마다 한 칸 자라며 시선을 막아요. 옆 친구가 사라지면 잘려요.',
-      'Vines grow one cell per action and block sight. A neighboring removal cuts them.'),
-  'hill': ('언덕 위 친구와 아래 친구는 서로를 지나쳐 봐요. 같은 높이끼리만 짝이 돼요.',
-      'Hill and ground creatures look past each other. Only creatures on the same level match.'),
-  'horse': ('나이트는 옆 친구가 사라지면 앞으로 두 칸, 오른쪽으로 한 칸 뛰어요.',
-      'When a neighbor disappears, a Knight jumps two cells forward and one to the right.'),
-  'frog': ('샤이는 같은 높이의 친구가 일방적으로 바라보면 앞으로 뛰어요.',
-      'A Shy jumps forward when a creature on its level looks at it one-sidedly.'),
-  'box': ('호퍼는 앞에 있는 나무 상자를 한 칸 밀 수 있어요.',
-      'A Hopper can push a wooden box one cell forward.'),
-  'rotor': ('금빛 축 거울을 누르면 90도 돌아가서 시선이 꺾이는 방향이 바뀌어요.',
-      'Tap a gold-pivot mirror to turn it 90 degrees and change where sight bends.'),
+  'normal': ('친구를 눌러 돌려요\n두 친구가 마주 보면 짝!', 'Tap a friend to turn it.\nFace to face, they match!'),
+  'noTriangle': ('두 친구가 한 친구를 보면\n그 친구는 짝이 못 돼요', 'If two friends look at one,\nthat one cannot match.'),
+  'removalTurnsNeighbors': ('친구가 사라지면\n옆 친구들이 한 칸 돌아요', 'When a friend disappears,\nits neighbors turn once.'),
+  'tapTurnsNeighbors': ('친구를 누르면\n옆 친구들도 같이 돌아요', 'When you tap a friend,\nits neighbors turn too.'),
+  'rock': ('바위는 시선을 막아요', 'Rocks block sight.'),
+  'anchored': ('앵커는 돌릴 수 없어요\n다른 친구를 돌려 맞춰요', 'Anchors cannot turn.\nTurn the others to meet them.'),
+  'cookie': ('쿠키벽은 시선을 막아요\n옆에서 짝이 나면 부서져요', 'Cookie walls block sight.\nA match next to one breaks it.'),
+  'spark': ('스파크가 사라지면\n옆 친구들이 반대로 돌아요', 'When a Spark disappears,\nits neighbors turn the other way.'),
+  'gate': ('친구를 돌릴 때마다\n민트 문이 열렸다 닫혀요', 'Each time you turn a friend,\nmint gates open or close.'),
+  'beckoner': ('컨덕터를 누르면\n바라보는 친구가 돌아요', 'Tap a Conductor\nto turn the friend it watches.'),
+  'hopper': ('호퍼를 누르면\n앞으로 한 칸 뛰어요', 'Tap a Hopper\nto jump one cell forward.'),
+  'candy': ('짝을 만나러 가는 길에\n별사탕을 모아요', 'Collect candy\non the way to a match.'),
+  'eater': ('이터는 첫 짝을 먹고 남아요\n다음 짝과 함께 사라져요', 'An Eater eats its first partner\nand leaves with the next.'),
+  'impatient': ('숫자가 0이 되기 전에\n타이머를 돌려 주세요', 'Turn a Timer\nbefore it reaches 0.'),
+  'mirror': ('거울은 시선을 꺾어요\n거울 너머로도 짝이 돼요', 'Mirrors bend sight.\nFriends match through them.'),
+  'lamp': ('친구가 램프를 보는 동안\n같은 번호 문이 열려요', 'While a friend watches a lamp,\ndoors with its number open.'),
+  'portal': ('같은 번호 웜홀은 이어져요\n시선이 반대쪽으로 나와요', 'Same-number wormholes link.\nSight comes out the other one.'),
+  'linked': ('링크 하나를 누르면\n링크가 모두 같이 돌아요', 'Tap one Link\nand every Link turns.'),
+  'ghost': ('유령은 친구를 쫓아와요\n바라보면 멈추고, 잡히면 실패!', 'Ghosts chase friends.\nA look stops them. Caught means fail!'),
+  'vine': ('덩굴은 매번 자라며 시선을 막아요\n옆 친구가 사라지면 잘려요', 'Vines grow each move and block sight.\nA neighbor leaving cuts them.'),
+  'hill': ('언덕 위와 아래는 서로 못 봐요\n같은 높이끼리만 짝!', 'Hill and ground cannot see each other.\nOnly the same level matches!'),
+  'horse': ('옆 친구가 사라지면\n나이트가 ㄱ자로 뛰어요', 'When a neighbor disappears,\nthe Knight jumps in an L.'),
+  'frog': ('누가 혼자 쳐다보면\n샤이가 앞으로 도망가요', 'When someone stares one-sidedly,\nthe Shy jumps away.'),
+  'box': ('호퍼가 앞의 상자를\n한 칸 밀 수 있어요', 'A Hopper can push the box\nin front of it one cell.'),
+  'rotor': ('금빛 축 거울을 누르면\n90도 돌아가요', 'Tap a gold-pivot mirror\nto turn it 90 degrees.'),
 };
 
 /// Hand-built starts for explanation rounds the random search could not
@@ -597,11 +575,13 @@ class RoundGenerator {
     final steps = <Map<String, Object>>[];
     if (introduced != null) {
       final (ko, en) = names[introduced]!;
-      steps.add(introduced == 'normal'
-          ? {'ko': '친구를 눌러 돌려서 두 친구가 서로 마주 보게 하세요.',
-             'en': 'Tap creatures to turn them until two face each other.'}
-          : {'ko': '새 규칙: $ko. ${introLines[introduced]!.$1}',
-             'en': 'New rule: $en. ${introLines[introduced]!.$2}'});
+      // The rule's name is the card title; a Basics round reads as a guide.
+      steps.add({
+        'title': introduced == 'normal' ? '게임 방법' : ko,
+        'titleEn': introduced == 'normal' ? 'How to play' : en,
+        'rule': introduced != 'normal',
+        'ko': introLines[introduced]!.$1, 'en': introLines[introduced]!.$2,
+      });
       final first = b.actionCell(solution.first);
       steps.add({'x': first % b.w, 'y': first ~/ b.w,
         'ko': '빛나는 곳을 눌러 첫 행동을 해 보세요.', 'en': 'Tap the glowing cell to try the first action.'});
