@@ -38,7 +38,7 @@ const threeDayProfiles = [
       'Links turn together. Find a match through the mirror.'),
   ThreeDayProfile(2, {'anchored', 'hopper'}, 'box', 8,
       '길을 열어줘', 'Clear the Way',
-      '호퍼로 상자를 밀고 the game 길을 열어보세요.',
+      '호퍼로 상자를 밀고 짝을 만날 길을 열어보세요.',
       'Push boxes with the Hopper to open a path for a match.'),
   ThreeDayProfile(3, {'anchored', 'eater'}, 'cookie', 9,
       '한 입의 순서', 'One Bite at a Time',

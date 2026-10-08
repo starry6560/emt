@@ -134,6 +134,8 @@ class RoundGenerator {
 
   List<EyeBoard> get startingBoards => const [];
 
+  double get sidewaysChance => 0.02;
+
   T pick<T>(List<T> items) => items[random.nextInt(items.length)];
 
   List<int> empties(EyeBoard b) => [for (var p = 0; p < b.w * b.h; p++) if (b.emptyLanding(p, groundOnly: true)) p];
@@ -537,7 +539,7 @@ class RoundGenerator {
       final e = evaluate(candidate);
       final worst = pool.reduce((a, b) => a.$2.score >= b.$2.score ? a : b);
       // A rare worse step keeps the pool from settling on one local optimum.
-      if (e.score < worst.$2.score || random.nextDouble() < 0.02) {
+      if (e.score < worst.$2.score || random.nextDouble() < sidewaysChance) {
         pool[pool.indexOf(worst)] = (candidate, e);
       }
       if (e.score < best.$2.score) {

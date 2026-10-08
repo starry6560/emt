@@ -23,6 +23,9 @@ class ThreeDayGenerator extends campaign.RoundGenerator {
   List<EyeBoard> get startingBoards => savedBoards;
 
   @override
+  double get sidewaysChance => savedBoards.isEmpty ? 0.02 : 0.12;
+
+  @override
   int get creatureCap => maximumCreatures;
 
   @override
@@ -31,6 +34,43 @@ class ThreeDayGenerator extends campaign.RoundGenerator {
   @override
   EyeBoard? mutate(EyeBoard source) {
     try {
+      if (savedBoards.isNotEmpty && random.nextDouble() < 0.7) {
+        final b = source.clone();
+        switch (random.nextInt(3)) {
+          case 0:
+            final from = pick(b.candies.toList());
+            b.candies.remove(from);
+            final spots = alignedCells(b);
+            if (spots.isEmpty) return null;
+            b.candies.add(pick(spots));
+          case 1:
+            final anchors = b.cr.where((c) => c.kind == CreatureKind.anchored).toList();
+            if (anchors.isEmpty) return super.mutate(source);
+            final anchor = pick(anchors);
+            if (random.nextBool()) {
+              anchor.d = (anchor.d + 1 + random.nextInt(3)) % 4;
+            } else {
+              final normal = pick(b.cr.where((c) => c.kind == CreatureKind.normal).toList());
+              final x = anchor.x, y = anchor.y;
+              anchor.x = normal.x; anchor.y = normal.y;
+              normal.x = x; normal.y = y;
+            }
+          case 2:
+            if (profile.number != 2) return super.mutate(source);
+            final hopper = pick(b.cr.where((c) => c.kind == CreatureKind.hopper).toList());
+            hopper.d = random.nextInt(4);
+            final from = pick(b.boxes.toList());
+            b.boxes.remove(from);
+            final next = b.step(hopper.y * b.w + hopper.x, hopper.d);
+            if (next == null || !b.emptyLanding(next, groundOnly: true) || b.candies.contains(next)) return null;
+            final destination = b.step(next, hopper.d);
+            if (destination == null || !b.emptyLanding(destination, groundOnly: true) || b.candies.contains(destination)) return null;
+            b.boxes.add(next);
+        }
+        final out = boardFromData(boardData(b));
+        unpair(out);
+        return out;
+      }
       return super.mutate(source);
     } on FormatException {
       // An intermediate edit may temporarily overwrite one wormhole endpoint.
