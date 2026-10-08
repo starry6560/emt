@@ -17,6 +17,10 @@ const maximumCreatures = 10;
 class ThreeDayGenerator extends campaign.RoundGenerator {
   ThreeDayGenerator(this.profile) : super(profile.spec);
   final ThreeDayProfile profile;
+  final savedBoards = <EyeBoard>[];
+
+  @override
+  List<EyeBoard> get startingBoards => savedBoards;
 
   @override
   int get creatureCap => maximumCreatures;
@@ -88,6 +92,18 @@ void main() {
   if (seed < 0) throw ArgumentError.value(seed, 'GEN_ATTEMPT', 'Must be nonnegative');
   final profile = threeDayProfiles[number - 1];
   final generator = ThreeDayGenerator(profile);
+  if (Platform.environment['DAILY_MODE'] == 'repair') {
+    final sourceRoot = Directory(Platform.environment['DAILY_SOURCE_ROOT'] ?? 'tools/input/three_day');
+    final stored = [
+      for (final file in sourceRoot.listSync(recursive: true).whereType<File>())
+        if (file.path.split(Platform.pathSeparator).last.startsWith('profile-$number-seed-'))
+          Map<String, Object?>.from(jsonDecode(file.readAsStringSync()) as Map),
+    ]..sort((a, b) => (a['score'] as num).compareTo(b['score'] as num));
+    generator.savedBoards.addAll([
+      for (final candidate in stored)
+        if (candidate['level'] is Map) boardFromData(candidate['level'] as Map),
+    ]);
+  }
   final Map<String, Object?> result;
   if (Platform.environment['DAILY_MODE'] == 'rescore') {
     final sourceRoot = Directory(Platform.environment['DAILY_SOURCE_ROOT'] ?? 'tools/input/three_day');

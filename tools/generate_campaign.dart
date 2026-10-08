@@ -132,6 +132,8 @@ class RoundGenerator {
 
   int get requiredEvidenceStates => quickStates;
 
+  List<EyeBoard> get startingBoards => const [];
+
   T pick<T>(List<T> items) => items[random.nextInt(items.length)];
 
   List<int> empties(EyeBoard b) => [for (var p = 0; p < b.w * b.h; p++) if (b.emptyLanding(p, groundOnly: true)) p];
@@ -516,7 +518,12 @@ class RoundGenerator {
       evaluations++;
       return (board, evaluate(board));
     }
-    final pool = [for (var i = 0; i < population; i++) fresh()];
+    final saved = startingBoards.take(population).toList();
+    final pool = [
+      for (final board in saved) (board, evaluate(board)),
+      for (var i = saved.length; i < population; i++) fresh(),
+    ];
+    evaluations += saved.length;
     var best = pool.reduce((a, b) => a.$2.score <= b.$2.score ? a : b);
     while (!best.$2.accepted && evaluations < budget && attempts++ < budget * 20 &&
         clock.elapsed.inSeconds < safetySeconds) {

@@ -6,12 +6,16 @@ on:
       mode:
         description: "생성 대상"
         type: choice
-        options: [campaign, three-day, three-day-rescore]
+        options: [campaign, three-day, three-day-rescore, three-day-repair]
         default: campaign
       source_run:
         description: "재측정할 후보가 있는 실행 ID"
         required: false
         default: ""
+      profiles:
+        description: "3일 도전 조합 목록 (JSON 배열)"
+        required: false
+        default: "[1,2,3,4,5]"
       rounds:
         description: "생성할 라운드 (예: 1-300, 또는 7 10 25)"
         required: true
@@ -78,14 +82,14 @@ jobs:
           retention-days: 1
 
   three-day:
-    if: ${{ inputs.mode == 'three-day' || inputs.mode == 'three-day-rescore' }}
+    if: ${{ inputs.mode == 'three-day' || inputs.mode == 'three-day-rescore' || inputs.mode == 'three-day-repair' }}
     runs-on: ubuntu-latest
     timeout-minutes: 70
     strategy:
       fail-fast: false
       max-parallel: 20
       matrix:
-        profile: [1, 2, 3, 4, 5]
+        profile: ${{ fromJson(inputs.profiles || '[1,2,3,4,5]') }}
         seed: [0, 1, 2, 3]
     steps:
       - uses: actions/checkout@v4
@@ -93,7 +97,7 @@ jobs:
       - run: dart pub get
       - run: dart compile exe tools/generate_three_day.dart -o generate-three-day
       - uses: actions/download-artifact@v4
-        if: ${{ inputs.mode == 'three-day-rescore' }}
+        if: ${{ inputs.mode == 'three-day-rescore' || inputs.mode == 'three-day-repair' }}
         with:
           github-token: ${{ github.token }}
           run-id: ${{ inputs.source_run }}
@@ -105,7 +109,7 @@ jobs:
           DAILY_PROFILE: ${{ matrix.profile }}
           GEN_ATTEMPT: ${{ matrix.seed }}
           GEN_SECONDS: ${{ inputs.seconds }}
-          DAILY_MODE: ${{ inputs.mode == 'three-day-rescore' && 'rescore' || 'generate' }}
+          DAILY_MODE: ${{ inputs.mode == 'three-day-rescore' && 'rescore' || inputs.mode == 'three-day-repair' && 'repair' || 'generate' }}
           DAILY_SOURCE_ROOT: tools/input/three_day
         run: ./generate-three-day
       - uses: actions/upload-artifact@v4
