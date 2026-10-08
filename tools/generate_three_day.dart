@@ -100,6 +100,7 @@ class ThreeDayGenerator extends campaign.RoundGenerator {
   EyeBoard initialBoard() {
     while (true) {
       var board = super.initialBoard();
+      if (board.candies.isEmpty && !place(board, 'candy')) continue;
       var tries = 0;
       while (board.cr.length < minimumCreatures && tries++ < 30) {
         addPair(board);
@@ -208,6 +209,23 @@ void main() {
   }
   final level = result['level'] as Map<String, Object?>?;
   if (level != null) {
+    final replay = boardFromData(level);
+    final events = <String, int>{};
+    for (final action in (level['solution'] as List).cast<int>()) {
+      replay.tapDetailed(action);
+      for (final event in replay.events) {
+        events.update(event.kind, (count) => count + 1, ifAbsent: () => 1);
+      }
+    }
+    result['certificateReplay'] = {
+      'won': replay.won, 'candiesRemaining': replay.candies.length,
+      'events': events,
+    };
+    if (!replay.won || replay.candies.isNotEmpty) {
+      result['status'] = 'best_effort';
+      result['score'] = 1e6;
+      result['reasons'] = ['certificate_failed'];
+    }
     result['level'] = {
       ...level,
       'id': 'three-day-${number.toString().padLeft(3, '0')}',
@@ -229,6 +247,9 @@ void main() {
       'creatureTypes': ['normal', ...profile.specials],
       'requiredElements': profile.spec.required.toList()..sort(),
       'tapFloor': profile.floor,
+      'candyMustBeCollected': true,
+      'candyMustChangeSolution': number != 3,
+      'boxMustBePushed': number == 2,
     },
   });
   final directory = Directory(outputDirectory)..createSync(recursive: true);
