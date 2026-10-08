@@ -130,6 +130,8 @@ class RoundGenerator {
   int get maxDepth => spec.explanation ? explanationMaxTaps : floor + 8;
   int get creatureCap => min(maxCreatures, (spec.maxWidth * spec.maxHeight * 0.4).floor());
 
+  int get requiredEvidenceStates => quickStates;
+
   T pick<T>(List<T> items) => items[random.nextInt(items.length)];
 
   List<int> empties(EyeBoard b) => [for (var p = 0; p < b.w * b.h; p++) if (b.emptyLanding(p, groundOnly: true)) p];
@@ -481,7 +483,7 @@ class RoundGenerator {
     final shortfalls = <(String, double)>[
       for (final element in spec.required.difference({'rock'}))
         (element, () {
-          final evidence = ruleEvidence(b, par, element, maxStates: quickStates);
+          final evidence = ruleEvidence(b, par, element, maxStates: requiredEvidenceStates);
           return evidence == null ? 1.0 : max(0.0, 1 - evidence / activeEvidence);
         }()),
     ]..sort((x, y) => x.$2.compareTo(y.$2));

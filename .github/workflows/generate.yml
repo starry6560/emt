@@ -6,8 +6,12 @@ on:
       mode:
         description: "생성 대상"
         type: choice
-        options: [campaign, three-day]
+        options: [campaign, three-day, three-day-rescore]
         default: campaign
+      source_run:
+        description: "재측정할 후보가 있는 실행 ID"
+        required: false
+        default: ""
       rounds:
         description: "생성할 라운드 (예: 1-300, 또는 7 10 25)"
         required: true
@@ -27,10 +31,11 @@ on:
 
 permissions:
   contents: read
+  actions: read
 
 jobs:
   split:
-    if: ${{ inputs.mode != 'three-day' }}
+    if: ${{ inputs.mode == 'campaign' || inputs.mode == '' }}
     runs-on: ubuntu-latest
     outputs:
       chunks: ${{ steps.split.outputs.chunks }}
@@ -73,7 +78,7 @@ jobs:
           retention-days: 1
 
   three-day:
-    if: ${{ inputs.mode == 'three-day' }}
+    if: ${{ inputs.mode == 'three-day' || inputs.mode == 'three-day-rescore' }}
     runs-on: ubuntu-latest
     timeout-minutes: 70
     strategy:
@@ -87,12 +92,21 @@ jobs:
       - uses: dart-lang/setup-dart@v1
       - run: dart pub get
       - run: dart compile exe tools/generate_three_day.dart -o generate-three-day
+      - uses: actions/download-artifact@v4
+        if: ${{ inputs.mode == 'three-day-rescore' }}
+        with:
+          github-token: ${{ github.token }}
+          run-id: ${{ inputs.source_run }}
+          pattern: three-day-*
+          path: tools/input/three_day
       - name: Generate one candidate
         timeout-minutes: 63
         env:
           DAILY_PROFILE: ${{ matrix.profile }}
           GEN_ATTEMPT: ${{ matrix.seed }}
           GEN_SECONDS: ${{ inputs.seconds }}
+          DAILY_MODE: ${{ inputs.mode == 'three-day-rescore' && 'rescore' || 'generate' }}
+          DAILY_SOURCE_ROOT: tools/input/three_day
         run: ./generate-three-day
       - uses: actions/upload-artifact@v4
         if: always()

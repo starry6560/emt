@@ -22,6 +22,22 @@ class ThreeDayGenerator extends campaign.RoundGenerator {
   int get creatureCap => maximumCreatures;
 
   @override
+  int get requiredEvidenceStates => campaign.measureStates;
+
+  @override
+  EyeBoard? mutate(EyeBoard source) {
+    try {
+      return super.mutate(source);
+    } on FormatException {
+      // An intermediate edit may temporarily overwrite one wormhole endpoint.
+      // Reject this candidate rather than aborting the whole generation job.
+      return null;
+    } on RangeError {
+      return null;
+    }
+  }
+
+  @override
   EyeBoard initialBoard() {
     while (true) {
       var board = super.initialBoard();
@@ -71,7 +87,32 @@ void main() {
   final seed = campaign.attempt;
   if (seed < 0) throw ArgumentError.value(seed, 'GEN_ATTEMPT', 'Must be nonnegative');
   final profile = threeDayProfiles[number - 1];
-  final result = ThreeDayGenerator(profile).run();
+  final generator = ThreeDayGenerator(profile);
+  final Map<String, Object?> result;
+  if (Platform.environment['DAILY_MODE'] == 'rescore') {
+    final sourceRoot = Directory(Platform.environment['DAILY_SOURCE_ROOT'] ?? 'tools/input/three_day');
+    final sources = sourceRoot.listSync(recursive: true).whereType<File>()
+        .where((file) => file.path.endsWith('profile-$number-seed-$seed.json')).toList();
+    if (sources.length != 1) {
+      stdout.writeln('profile=$number seed=$seed: no unique saved candidate; skipping');
+      return;
+    }
+    final stored = Map<String, Object?>.from(jsonDecode(sources.single.readAsStringSync()) as Map);
+    final storedLevel = stored['level'] as Map?;
+    if (storedLevel == null) return;
+    final evaluation = generator.evaluate(boardFromData(storedLevel));
+    result = {
+      ...stored,
+      'status': evaluation.accepted ? 'accepted' : 'best_effort',
+      'score': evaluation.score,
+      'reasons': evaluation.reasons,
+      'metrics': evaluation.difficulty?.toJson(),
+      'rescored': true,
+      'requiredEvidenceStates': generator.requiredEvidenceStates,
+    };
+  } else {
+    result = generator.run();
+  }
   final level = result['level'] as Map<String, Object?>?;
   if (level != null) {
     result['level'] = {
