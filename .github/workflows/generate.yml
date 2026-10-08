@@ -3,6 +3,11 @@ name: generate
 on:
   workflow_dispatch:
     inputs:
+      mode:
+        description: "생성 대상"
+        type: choice
+        options: [campaign, three-day]
+        default: campaign
       rounds:
         description: "생성할 라운드 (예: 1-300, 또는 7 10 25)"
         required: true
@@ -25,6 +30,7 @@ permissions:
 
 jobs:
   split:
+    if: ${{ inputs.mode != 'three-day' }}
     runs-on: ubuntu-latest
     outputs:
       chunks: ${{ steps.split.outputs.chunks }}
@@ -64,4 +70,34 @@ jobs:
         with:
           name: rounds-${{ strategy.job-index }}
           path: tools/generated/campaign/*.json
+          retention-days: 1
+
+  three-day:
+    if: ${{ inputs.mode == 'three-day' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 70
+    strategy:
+      fail-fast: false
+      max-parallel: 20
+      matrix:
+        profile: [1, 2, 3, 4, 5]
+        seed: [0, 1, 2, 3]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dart-lang/setup-dart@v1
+      - run: dart pub get
+      - run: dart compile exe tools/generate_three_day.dart -o generate-three-day
+      - name: Generate one candidate
+        timeout-minutes: 63
+        env:
+          DAILY_PROFILE: ${{ matrix.profile }}
+          GEN_ATTEMPT: ${{ matrix.seed }}
+          GEN_SECONDS: ${{ inputs.seconds }}
+        run: ./generate-three-day
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: three-day-${{ matrix.profile }}-seed-${{ matrix.seed }}
+          path: tools/generated/three_day/*.json
+          if-no-files-found: warn
           retention-days: 1
