@@ -187,7 +187,7 @@ void main() {
       // Other reciprocal pairs start blocked by a second incoming gaze.
       generator.savedBoards.insert(0, boardFromData({
         'encodingVersion': 5,
-        'rows': ['.>>..v', '.q....', 'b^K..^', '..n...', '#.....', '>.<..<'],
+        'rows': ['..>..v', '....>.', 'b.K..^', '..n.q.', '#...^.', '>.<..<'],
         'rules': profile.spec.rules.toJson(),
       }));
     }
@@ -257,6 +257,9 @@ void main() {
       'creatureTypes': ['normal', ...profile.specials],
       'requiredElements': profile.spec.required.toList()..sort(),
       'tapFloor': profile.floor,
+      'minimumFirstChoices': profile.spec.minFirstChoices,
+      'maximumCorrectShare': profile.spec.maxCorrectShare,
+      'minimumDeadEndRatio': profile.spec.minDeadEndRatio,
       'candyMustBeCollected': true,
       'candyMustChangeSolution': number != 2 && number != 3,
       'boxMustBePushed': number == 2,

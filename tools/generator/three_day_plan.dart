@@ -24,7 +24,8 @@ class ThreeDayProfile {
     tapFloor: floor,
     slack: 2,
     minFirstChoices: 5,
-    maxCorrectShare: 0.5,
+    // With nine legal opening moves, five useful ones still leave four traps.
+    maxCorrectShare: number == 2 ? 5 / 9 : 0.5,
     minDeadEndRatio: 0.25,
     trapRequired: false,
     decoyCap: number == 2 || number == 3 ? 1 : 0,
