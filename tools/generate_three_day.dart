@@ -181,6 +181,16 @@ void main() {
       }
       generator.savedBoards.add(board);
     }
+    if (number == 2) {
+      // The box blocks a tempting match. Push it into the next row, then use
+      // the Conductor to turn the Hopper back toward its eventual partner.
+      // Other reciprocal pairs start blocked by a second incoming gaze.
+      generator.savedBoards.insert(0, boardFromData({
+        'encodingVersion': 5,
+        'rows': ['.>>..v', '.q....', 'b^K..^', '..n...', '#.....', '>.<..<'],
+        'rules': profile.spec.rules.toJson(),
+      }));
+    }
   }
   final Map<String, Object?> result;
   if (Platform.environment['DAILY_MODE'] == 'rescore') {
@@ -248,7 +258,7 @@ void main() {
       'requiredElements': profile.spec.required.toList()..sort(),
       'tapFloor': profile.floor,
       'candyMustBeCollected': true,
-      'candyMustChangeSolution': number != 3,
+      'candyMustChangeSolution': number != 2 && number != 3,
       'boxMustBePushed': number == 2,
     },
   });

@@ -17,9 +17,9 @@ class ThreeDayProfile {
     round: number,
     introduces: null,
     elements: {'rock', 'candy', obstacle, ...specials},
-    // The Eater puzzle may award its candy along an already-required match.
+    // These two puzzles may award candy along an already-required match.
     // Its certificate must still collect it; candy need not create a detour.
-    required: {'rock', if (number != 3) 'candy', obstacle, ...specials},
+    required: {'rock', if (number != 2 && number != 3) 'candy', obstacle, ...specials},
     rules: const EyeRules(noTriangle: true),
     tapFloor: floor,
     slack: 2,
@@ -27,7 +27,7 @@ class ThreeDayProfile {
     maxCorrectShare: 0.5,
     minDeadEndRatio: 0.25,
     trapRequired: false,
-    decoyCap: number == 3 ? 1 : 0,
+    decoyCap: number == 2 || number == 3 ? 1 : 0,
     maxWidth: 6,
     maxHeight: 6,
   );
