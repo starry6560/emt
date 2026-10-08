@@ -44,6 +44,21 @@ class ThreeDayGenerator extends campaign.RoundGenerator {
             if (spots.isEmpty) return null;
             b.candies.add(pick(spots));
           case 1:
+            if (profile.number == 2) {
+              final conductor = pick(b.cr.where((c) => c.kind == CreatureKind.beckoner).toList());
+              final hopper = pick(b.cr.where((c) => c.kind == CreatureKind.hopper).toList());
+              final spots = <(int, int)>[];
+              for (var d = 0; d < 4; d++) {
+                for (var p = b.step(hopper.y * b.w + hopper.x, d);
+                    p != null && b.emptyLanding(p, groundOnly: true); p = b.step(p, d)) {
+                  if (!b.candies.contains(p)) spots.add((p, (d + 2) % 4));
+                }
+              }
+              if (spots.isEmpty) return null;
+              final (p, direction) = pick(spots);
+              conductor.x = p % b.w; conductor.y = p ~/ b.w; conductor.d = direction;
+              break;
+            }
             final anchors = b.cr.where((c) => c.kind == CreatureKind.anchored).toList();
             if (anchors.isEmpty) return super.mutate(source);
             final anchor = pick(anchors);
@@ -119,7 +134,21 @@ class ThreeDayGenerator extends campaign.RoundGenerator {
         'obstacle_count',
     ];
     if (reasons.isNotEmpty) return campaign.Evaluation(1e6, reasons: reasons);
-    return super.evaluate(board);
+    final evaluation = super.evaluate(board);
+    if (profile.number == 2 && evaluation.accepted) {
+      final solution = evaluation.difficulty?.solution.isNotEmpty == true
+          ? evaluation.difficulty!.solution
+          : searchBoard(board, maxDepth: evaluation.par!).path;
+      final replay = board.clone();
+      var pushed = false;
+      for (final action in solution) {
+        replay.tapDetailed(action);
+        if (replay.events.any((event) => event.kind == 'box')) pushed = true;
+      }
+      if (!pushed) return campaign.Evaluation(40, par: evaluation.par,
+          difficulty: evaluation.difficulty, reasons: ['required_action:box_push']);
+    }
+    return evaluation;
   }
 }
 
@@ -139,10 +168,18 @@ void main() {
         if (file.path.split(Platform.pathSeparator).last.startsWith('profile-$number-seed-'))
           Map<String, Object?>.from(jsonDecode(file.readAsStringSync()) as Map),
     ]..sort((a, b) => (a['score'] as num).compareTo(b['score'] as num));
-    generator.savedBoards.addAll([
-      for (final candidate in stored)
-        if (candidate['level'] is Map) boardFromData(candidate['level'] as Map),
-    ]);
+    for (final candidate in stored) {
+      if (candidate['level'] is! Map) continue;
+      final board = boardFromData(candidate['level'] as Map);
+      if (number == 2) {
+        // A Hopper that pushes a box keeps facing it. A Conductor lets it turn
+        // away afterwards; an Anchor could not provide that interaction.
+        for (final c in board.cr) {
+          if (c.kind == CreatureKind.anchored) c.kind = CreatureKind.beckoner;
+        }
+      }
+      generator.savedBoards.add(board);
+    }
   }
   final Map<String, Object?> result;
   if (Platform.environment['DAILY_MODE'] == 'rescore') {
